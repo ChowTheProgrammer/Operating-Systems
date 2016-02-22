@@ -1,0 +1,9 @@
+Design: I created a pid32 array[10]. So each of the entry naturally represents
+one priority level. So I will put the last enqueued PID to it's corresponding
+entry. For example, if the priority level of a old process is 1, then it will
+be put in array[1] position.
+
+So each time I ajust the priority of the old process, I will put just insert
+it to the next of the PID with same priority found in this array. So I can
+just insert the process next to the PID. And queuetab can give me the location
+in O(1) time. So the total operation can be achieved in O(1) time.

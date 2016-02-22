@@ -70,6 +70,7 @@ extern	uint32	dot2ip(char *, uint32 *);
 /* in file queue.c */
 
 extern	pid32	enqueue(pid32, qid16);
+extern  pid32 dequeue(qid16);
 
 /* in file intr.S */
 
