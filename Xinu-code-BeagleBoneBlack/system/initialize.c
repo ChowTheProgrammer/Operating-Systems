@@ -19,12 +19,14 @@ extern	void meminit(void);	/* Initializes the free memory list	*/
 
 struct	procent	proctab[NPROC];	/* Process table			*/
 struct	sentry	semtab[NSEM];	/* Semaphore table			*/
+struct  pipent  piptab[NPIPE];  /* Pipe table               */
 struct	memblk	memlist;	/* List of free memory blocks		*/
 
 /* Active system status */
 
 int	prcount;		/* Total number of live processes	*/
 pid32	currpid;		/* ID of currently executing process	*/
+int32   pipcount;   /* Count of active pipe     */
 
 /*------------------------------------------------------------------------
  * nulluser - initialize the system and become the null process
@@ -102,6 +104,7 @@ static	void	sysinit()
 	int32	i;
 	struct	procent	*prptr;		/* Ptr to process table entry	*/
 	struct	sentry	*semptr;	/* Prr to semaphore table entry	*/
+    struct  pipent  *pipptr;    /* Ptr to pipe table entry      */
 
 	/* Platform Specific Initialization */
 
@@ -154,6 +157,21 @@ static	void	sysinit()
 		semptr->scount = 0;
 		semptr->squeue = newqueue();
 	}
+
+    /* Initialize pipes */
+
+    pipcount = 0;
+
+    for (i = 0; i<NPIPE; i++) {
+       pipptr = &piptab[i];
+
+       pipptr->pipstate = PIPE_FREE;
+       pipptr->pipparent = -1;
+       pipptr->pipreader = -1;
+       pipptr->pipwriter = -1;
+       pipptr->pipmode = '\0';
+    }
+
 
 	/* Initialize buffer pools */
 
