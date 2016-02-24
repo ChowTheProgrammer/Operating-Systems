@@ -164,7 +164,7 @@ static	void	sysinit()
 
     for (i = 0; i<NPIPE; i++) {
        pipptr = &piptab[i];
-
+       memset(pipptr->buffer, '\0', PIPESIZE);
        pipptr->pipstate = PIPE_FREE;
        pipptr->pipparent = -1;
        pipptr->pipreader = -1;

@@ -7,8 +7,8 @@
 #define PIPESIZE    256
 
 #define PIPE_FREE     0   /* Pipe table entry is available */
-#define PIPE_USED     1   /* Pipe table entry is in use */
-#define PIPE_LINKED   2   /* Pipe has been linked with two processes */
+#define PIPE_OPENED     1   /* Pipe table entry is in use */
+#define PIPE_JOINED   2   /* Pipe has been linked with two processes */
 
 struct pipent  {
     uint16  pipstate;

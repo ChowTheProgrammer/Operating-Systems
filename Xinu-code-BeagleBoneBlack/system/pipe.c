@@ -22,8 +22,11 @@ ppid32 popen(const char *mode) {
     }
     pipcount++;
 
-    /* TODO: May need to set mem here */
     piptab[pip].pipmode = mode[0]; /* Initialize mode for the pip entry */
+    if (mode[0] == 'r')
+        piptab[pip].pipreader = (int32)getpid();
+    else
+        piptab[pip].pipwriter = (int32)getpid();
 
     restore(mask);
     return pip;
@@ -42,11 +45,32 @@ local   ppid32  newpip(void)
             nextpip = 0;
         }
         if (piptab[pip].pipstate == PIPE_FREE) {
-            piptab[pip].pipstate = PIPE_USED;
+            piptab[pip].pipstate = PIPE_OPENED;
             piptab[pip].pipparent = (pid32)getpid();
         kprintf("popen: The owner for pipe:%d is %d. \r\n", i, piptab[pip].pipparent);
             return pip;
         }
     }
     return SYSERR;
+}
+
+syscall pjoin   (ppid32 pipeid) {
+    intmask     mask;
+
+    mask = disable();
+    kprintf("pjoin: Pipe try to join is %d. \r\n", pipeid);
+
+    if (isbadppid(pipeid) || piptab[pipeid].pipstate!=PIPE_OPENED) {
+        restore(mask);
+        return SYSERR;
+    }
+
+    if (piptab[pipeid].pipreader == -1)
+        piptab[pipeid].pipreader = (int32)getpid();
+    else
+        piptab[pipeid].pipwriter = (int32)getpid();
+
+    piptab[pipeid].pipstate = PIPE_JOINED;
+
+    return OK;
 }
