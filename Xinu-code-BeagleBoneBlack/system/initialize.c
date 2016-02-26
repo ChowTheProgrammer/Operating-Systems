@@ -26,7 +26,6 @@ struct	memblk	memlist;	/* List of free memory blocks		*/
 
 int	prcount;		/* Total number of live processes	*/
 pid32	currpid;		/* ID of currently executing process	*/
-int32   pipcount;   /* Count of active pipe     */
 
 /*------------------------------------------------------------------------
  * nulluser - initialize the system and become the null process
@@ -160,15 +159,17 @@ static	void	sysinit()
 
     /* Initialize pipes */
 
-    pipcount = 0;
 
     for (i = 0; i<NPIPE; i++) {
        pipptr = &piptab[i];
        memset(pipptr->buffer, '\0', PIPESIZE);
        pipptr->pipstate = PIPE_FREE;
        pipptr->pipparent = -1;
-       pipptr->pipreader = -1;
-       pipptr->pipwriter = -1;
+       pipptr->pipreader = END_VALID;
+       pipptr->pipwriter = END_VALID;
+       pipptr->pipsem = 0;
+       pipptr->pipbufs = 0;
+       pipptr->pipbufc = 0;
        pipptr->pipmode = '\0';
     }
 

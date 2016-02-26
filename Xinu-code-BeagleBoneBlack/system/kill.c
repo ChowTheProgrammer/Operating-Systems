@@ -29,6 +29,17 @@ syscall	kill(
 	for (i=0; i<3; i++) {
 		close(prptr->prdesc[i]);
 	}
+
+    struct pipent *pipptr;
+    for (i=0; i<NPIPE; i++) {
+        pipptr = &piptab[i];
+        if (pipptr->pipreader == (int32)getpid() ||
+                pipptr->pipwriter == (int32)getpid()) {
+            /* Close ends before process terminates */
+            pclose(i);
+        }
+    }
+
 	freestk(prptr->prstkbase, prptr->prstklen);
 
 	switch (prptr->prstate) {

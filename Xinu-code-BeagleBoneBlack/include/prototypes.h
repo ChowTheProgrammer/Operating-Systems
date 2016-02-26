@@ -334,9 +334,9 @@ extern	void	pdumph(struct netpacket *);
 /* in file pipe.c */
 extern  ppid32  popen(const char *mode);
 extern  syscall pjoin(ppid32 pipeid);
-//extern  syscall pclose(ppid32 pipeid);
-//extern  syscall pread(ppid32 pipeid, void *buf, uint32 len);
-//extern  syscall pwrite(ppid32 pipeid, void *buf, uint32 len);
+extern  syscall pclose(ppid32 pipeid);
+extern  syscall pread(ppid32 pipeid, void *buf, uint32 len);
+extern  syscall pwrite(ppid32 pipeid, void *buf, uint32 len);
 
 /* in file platinit.c */
 extern	void	platinit(void);

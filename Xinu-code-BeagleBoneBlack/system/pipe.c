@@ -2,7 +2,6 @@
 
 #include <xinu.h>
 
-int32   pipcount;
 
 local   ppid32    newpip(void);
 
@@ -20,13 +19,25 @@ ppid32 popen(const char *mode) {
         restore(mask);
         return SYSERR;
     }
-    pipcount++;
 
-    piptab[pip].pipmode = mode[0]; /* Initialize mode for the pip entry */
-    if (mode[0] == 'r')
-        piptab[pip].pipreader = (int32)getpid();
-    else
-        piptab[pip].pipwriter = (int32)getpid();
+    struct pipent *pipptr;
+
+    pipptr = &piptab[pip];
+
+
+    pipptr->pipmode = mode[0]; /* Initialize mode for the pip entry */
+    if (mode[0]=='r' && pipptr->pipreader==END_VALID) {
+        pipptr->pipreader = (int32)getpid();
+    }
+    else if (mode[0]=='w' && pipptr->pipwriter==END_VALID) {
+        pipptr->pipwriter = (int32)getpid();
+    }
+    else {
+        restore(mask);
+        return SYSERR;
+    }
+
+    pipptr->pipsem = semcreate(1); /* Create sem for the pipe */
 
     restore(mask);
     return pip;
@@ -47,7 +58,7 @@ local   ppid32  newpip(void)
         if (piptab[pip].pipstate == PIPE_FREE) {
             piptab[pip].pipstate = PIPE_OPENED;
             piptab[pip].pipparent = (pid32)getpid();
-        kprintf("popen: The owner for pipe:%d is %d. \r\n", i, piptab[pip].pipparent);
+        /*kprintf("popen: The owner for pipe:%d is %d. \r\n", i, piptab[pip].pipparent);*/
             return pip;
         }
     }
@@ -65,12 +76,173 @@ syscall pjoin   (ppid32 pipeid) {
         return SYSERR;
     }
 
-    if (piptab[pipeid].pipreader == -1)
-        piptab[pipeid].pipreader = (int32)getpid();
-    else
-        piptab[pipeid].pipwriter = (int32)getpid();
+    struct pipent *pipptr;
 
-    piptab[pipeid].pipstate = PIPE_JOINED;
+    pipptr = &piptab[pipeid];
+
+    if (pipptr->pipmode == 'w')
+        pipptr->pipreader = (int32)getpid();
+    else
+        pipptr->pipwriter = (int32)getpid();
+
+    pipptr->pipstate = PIPE_JOINED;      /* change the state to JOINED */
+
+    kprintf("pjoin: pid %d join %d successfully. \r\n", getpid(), pipeid);
 
     return OK;
+}
+
+
+syscall pclose  (ppid32 pipeid) {
+    intmask     mask;
+
+    mask = disable();
+
+    if (isbadppid(pipeid)) {
+        restore(mask);
+        return SYSERR;
+    }
+
+    struct pipent *pipptr;
+
+    pipptr = &piptab[pipeid];
+
+    if (pipptr->pipreader == (int32)getpid()) { /* close reader end */
+        pipptr->pipreader = END_VALID;
+    }
+    else if (pipptr->pipwriter == (int32)getpid()) { /* close writer end */
+        pipptr->pipwriter = END_VALID;
+    }
+    else {
+        restore(mask);
+        return SYSERR;
+    }
+
+    if (semcount(pipptr->pipsem) < 0) { /* Wake up the blocked process by signal */
+        signal(pipptr->pipsem);
+    }
+
+    if (pipptr->pipreader==END_VALID && pipptr->pipwriter==END_VALID) {
+        /* Free pipe if both ends are closed */
+        /* Then initialize all the fields */
+
+        pipptr->pipstate = PIPE_FREE;
+        pipptr->pipparent = -1;
+        pipptr->pipsem = semdelete(pipptr->pipsem);
+        freemem(pipptr->buffer, PIPESIZE);
+        pipptr->pipbufs = 0;
+        pipptr->pipbufc = 0;
+        pipptr->pipmode = '\0';
+    }
+
+    return OK;
+}
+
+
+syscall pread(ppid32 pipeid, void *buf, uint32 len) {
+    intmask     mask;
+    mask = disable();
+
+    if (isbadppid(pipeid)) {
+        restore(mask);
+        return SYSERR;
+    }
+
+    struct pipent *pipptr;
+
+    pipptr = &piptab[pipeid];
+
+    if (pipptr->pipstate!=PIPE_JOINED || pipptr->pipreader!=(int32)getpid()) {
+        /* Check pipestate and process permission to read */
+        restore(mask);
+        return SYSERR;
+    }
+
+    byte *buffer = buf;
+    int counter = 0;
+    byte b;
+
+    wait(pipptr->pipsem);
+
+    while(counter<len) {
+
+        if (pipptr->pipbufc == 0) { /* No data in the pipe */
+            if(pipptr->pipwriter == END_VALID) { /* Write end is closed */
+                kprintf("pread: no data and write end is closed. \r\n");
+                signal(pipptr->pipsem);
+                restore(mask);
+                return SYSERR;
+            }
+            else {
+                kprintf("pread: no data but waiting for writer. \r\n");
+                signal(pipptr->pipsem);
+                resched();
+                wait(pipptr->pipsem);
+            }
+        }
+        b = pipptr->buffer[pipptr->pipbufs];
+        if (b=='\0') {
+            break;
+        }
+        *buffer++ = b;
+        pipptr->pipbufc--;
+        pipptr->pipbufs = (pipptr->pipbufs + 1) % PIPESIZE;
+        counter++;
+    }
+
+    kprintf("pread: read complete. Total bytes read is %d. \r\n", counter);
+    signal(pipptr->pipsem);
+    restore(mask);
+    return counter;
+}
+
+
+syscall pwrite(ppid32 pipeid, void *buf, uint32 len) {
+    intmask     mask;
+    mask = disable();
+
+    if (isbadppid(pipeid)) {
+        restore(mask);
+        return SYSERR;
+    }
+
+    struct pipent *pipptr;
+
+    pipptr = &piptab[pipeid];
+
+    if (pipptr->pipstate!=PIPE_JOINED || pipptr->pipwriter!=(int32)getpid()) {
+        restore(mask);
+        return SYSERR;
+    }
+
+    byte *buffer = buf;
+    int counter = 0;
+
+    wait(pipptr->pipsem);
+
+    while(counter<len) {
+
+        if(pipptr->pipreader == END_VALID) {
+            kprintf("pwrite: no reader. \r\n");
+            signal(pipptr->pipsem);
+            restore(mask);
+            return SYSERR;
+        }
+        if(pipptr->pipbufc == PIPESIZE) {
+            kprintf("pwrite: no free space for writer. \r\n");
+            signal(pipptr->pipsem);
+            resched();
+            wait(pipptr->pipsem);
+        }
+
+
+        pipptr->buffer[(pipptr->pipbufs + pipptr->pipbufc) % PIPESIZE] = *buffer++;
+        counter++;
+        pipptr->pipbufc++;
+    }
+
+    kprintf("pwrite: write complete. Total bytes wrote is %d. \r\n", counter);
+    signal(pipptr->pipsem);
+    restore(mask);
+    return counter;
 }
