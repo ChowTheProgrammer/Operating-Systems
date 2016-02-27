@@ -143,7 +143,7 @@ syscall pread(ppid32 pipeid, void *buf, uint32 len) {
     intmask     mask;
     mask = disable();
 
-    if (isbadppid(pipeid)) {
+    if (isbadppid(pipeid) || len<0) {
         restore(mask);
         return SYSERR;
     }
@@ -176,7 +176,7 @@ syscall pread(ppid32 pipeid, void *buf, uint32 len) {
             else {
                 kprintf("pread: no data but waiting for writer. \r\n");
                 signal(pipptr->pipsem);
-                resched();
+                /*resched();*/
                 wait(pipptr->pipsem);
             }
         }
@@ -201,7 +201,7 @@ syscall pwrite(ppid32 pipeid, void *buf, uint32 len) {
     intmask     mask;
     mask = disable();
 
-    if (isbadppid(pipeid)) {
+    if (isbadppid(pipeid) || len<0) {
         restore(mask);
         return SYSERR;
     }
@@ -231,7 +231,7 @@ syscall pwrite(ppid32 pipeid, void *buf, uint32 len) {
         if(pipptr->pipbufc == PIPESIZE) {
             kprintf("pwrite: no free space for writer. \r\n");
             signal(pipptr->pipsem);
-            resched();
+            /*resched();*/
             wait(pipptr->pipsem);
         }
 
