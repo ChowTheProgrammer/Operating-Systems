@@ -13,7 +13,7 @@ ppid32 popen(const char *mode) {
 
     mask = disable();
 
-    kprintf("popen: The mode is %c \r\n", mode[0]);
+    /*kprintf("popen: The mode is %c \r\n", mode[0]);*/
 
     if ((mode[0] != 'r' && mode[0] != 'w') || ((pip=newpip())==SYSERR)) {
         restore(mask);
@@ -69,7 +69,7 @@ syscall pjoin   (ppid32 pipeid) {
     intmask     mask;
 
     mask = disable();
-    kprintf("pjoin: Pipe try to join is %d. \r\n", pipeid);
+    /*kprintf("pjoin: Pipe try to join is %d. \r\n", pipeid);*/
 
     if (isbadppid(pipeid) || piptab[pipeid].pipstate!=PIPE_OPENED) {
         restore(mask);
@@ -87,7 +87,7 @@ syscall pjoin   (ppid32 pipeid) {
 
     pipptr->pipstate = PIPE_JOINED;      /* change the state to JOINED */
 
-    kprintf("pjoin: pid %d join %d successfully. \r\n", getpid(), pipeid);
+    /*kprintf("pjoin: pid %d join %d successfully. \r\n", getpid(), pipeid);*/
 
     return OK;
 }
@@ -168,29 +168,27 @@ syscall pread(ppid32 pipeid, void *buf, uint32 len) {
 
         if (pipptr->pipbufc == 0) { /* No data in the pipe */
             if(pipptr->pipwriter == END_VALID) { /* Write end is closed */
-                kprintf("pread: no data and write end is closed. \r\n");
+                /*kprintf("pread: no data and write end is closed. \r\n");*/
                 signal(pipptr->pipsem);
                 restore(mask);
                 return SYSERR;
             }
             else {
-                kprintf("pread: no data but waiting for writer. \r\n");
+                /*kprintf("pread: no data but waiting for writer. \r\n");*/
                 signal(pipptr->pipsem);
                 /*resched();*/
                 wait(pipptr->pipsem);
             }
         }
         b = pipptr->buffer[pipptr->pipbufs];
-        if (b=='\0') {
-            break;
-        }
+
         *buffer++ = b;
         pipptr->pipbufc--;
         pipptr->pipbufs = (pipptr->pipbufs + 1) % PIPESIZE;
         counter++;
     }
 
-    kprintf("pread: read complete. Total bytes read is %d. \r\n", counter);
+    /*kprintf("pread: read complete. Total bytes read is %d. \r\n", counter);*/
     signal(pipptr->pipsem);
     restore(mask);
     return counter;
@@ -223,13 +221,13 @@ syscall pwrite(ppid32 pipeid, void *buf, uint32 len) {
     while(counter<len) {
 
         if(pipptr->pipreader == END_VALID) {
-            kprintf("pwrite: no reader. \r\n");
+            /*kprintf("pwrite: no reader. \r\n");*/
             signal(pipptr->pipsem);
             restore(mask);
             return SYSERR;
         }
         if(pipptr->pipbufc == PIPESIZE) {
-            kprintf("pwrite: no free space for writer. \r\n");
+            /*kprintf("pwrite: no free space for writer. \r\n");*/
             signal(pipptr->pipsem);
             /*resched();*/
             wait(pipptr->pipsem);
@@ -241,7 +239,7 @@ syscall pwrite(ppid32 pipeid, void *buf, uint32 len) {
         pipptr->pipbufc++;
     }
 
-    kprintf("pwrite: write complete. Total bytes wrote is %d. \r\n", counter);
+    /*kprintf("pwrite: write complete. Total bytes wrote is %d. \r\n", counter);*/
     signal(pipptr->pipsem);
     restore(mask);
     return counter;
